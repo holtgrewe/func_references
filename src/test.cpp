@@ -67,6 +67,7 @@ public:
     virtual void HandleTranslationUnit(ASTContext &Context);
     bool VisitClassTemplateSpecializationDecl(ClassTemplateSpecializationDecl *D);
     bool VisitClassTemplatePartialSpecializationDecl(ClassTemplatePartialSpecializationDecl *D);
+    bool VisitCallExpr(CallExpr *D);
     
     ASTFilter<ASTPrinter> Filter;
     ASTContext *Context;
@@ -82,6 +83,13 @@ bool ASTPrinter::VisitClassTemplateSpecializationDecl(ClassTemplateSpecializatio
 bool ASTPrinter::VisitClassTemplatePartialSpecializationDecl(ClassTemplatePartialSpecializationDecl *D)
 {
     OS << "partial specialization\t" << D->getNameAsString() << "\n";
+    return true;
+}
+
+bool ASTPrinter::VisitCallExpr(CallExpr *D)
+{
+    OS << "call expr\t" << D->getStmtClassName() << "\n";
+    D->dump();
     return true;
 }
 
@@ -107,5 +115,37 @@ TEST(runToolOnCode, CanSyntaxCheckCode)
 {
     // runToolOnCode returns whether the action was correctly run over the
     // given code.
-    EXPECT_TRUE(clang::tooling::runToolOnCode(new ASTPrinterAction, "class X {}; template <typename T> class Y {}; template <> class Y<int> {};"));
+    char const * SOURCE =
+            "template <typename T, typename TSpec>\n"
+            "struct Foo;\n"
+            "\n"
+            "struct Tick {};\n"
+            "struct Tock {};\n"
+            "\n"
+            "template <typename T>\n"
+            "struct Foo<T, Tick>\n"
+            "{};\n"
+            "\n"
+            "template <typename T>\n"
+            "int bar(Foo<T, Tick> const & x)\n"
+            "{ return 1; }\n"
+            "\n"
+            "template <typename T>\n"
+            "struct Foo<T, Tock>\n"
+            "{};\n"
+            "\n"
+            "template <typename T>\n"
+            "int bar(Foo<T, Tock> const & x)\n"
+            "{ return 1; }\n"
+            "\n"
+            "template <typename TSpec>\n"
+            "int foo(TSpec const & tag)\n"
+            "{\n"
+            "  Foo<int, TSpec> x;\n"
+            "  return bar(x);\n"
+            "}\n"
+            "\n"
+            "int main()\n"
+            "{ return foo(Tick()); }\n";
+    EXPECT_TRUE(clang::tooling::runToolOnCode(new ASTPrinterAction, SOURCE));
 }
